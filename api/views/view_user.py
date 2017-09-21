@@ -1,19 +1,31 @@
 from django.contrib.auth.models import User, Group
-from rest_framework import viewsets
-from api.serializers.serializer_user import UserSerializer, GroupSerializer
+from rest_framework import generics, status
+from rest_framework.authtoken.models import Token
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from api.serializers.serializer_user import UserCreateSerializer
 
+class UserCreateView(generics.CreateAPIView):
+    """
+    Register new user, returns the user id and the auth token
+    """
+    queryset = User.objects.all()
+    serializer_class = UserCreateSerializer
 
-class UserViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint that allows users to be viewed or edited.
-    """
-    queryset = User.objects.all().order_by('-date_joined')
-    serializer_class = UserSerializer
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        token, created = Token.objects.get_or_create(user=serializer.instance)
+        return Response(
+            {
+                'token': token.key,
+                'id':serializer.instance.id,
+                'username': serializer.instance.username,
+            },
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
 
-
-class GroupViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint that allows groups to be viewed or edited.
-    """
-    queryset = Group.objects.all()
-    serializer_class = GroupSerializer
+# https://github.com/Tivix/django-rest-auth/blob/master/rest_auth/urls.py
